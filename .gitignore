@@ -1,0 +1,7 @@
+
+# sanwen large files
+sanwen/**/*.safetensors
+sanwen/**/*.bin
+sanwen/**/models/
+sanwen/**/cache/
+

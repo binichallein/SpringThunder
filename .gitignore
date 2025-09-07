@@ -5,3 +5,10 @@ sanwen/**/*.bin
 sanwen/**/models/
 sanwen/**/cache/
 
+
+# essay large files / caches
+docs/essay/**/*.safetensors
+docs/essay/**/*.bin
+docs/essay/**/models/
+docs/essay/**/cache/
+docs/essay/**/__pycache__/

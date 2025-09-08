@@ -26,6 +26,7 @@ project_root = os.path.join(os.path.dirname(__file__), '..', '..')
 sys.path.insert(0, project_root)
 from test_siliconflow_api import get_beginning_and_outline
 import time
+import subprocess
 
 class SiliconFlowAPIClient:
     """硅基流动API客户端"""
@@ -241,6 +242,42 @@ class SiliconFlowAPIClient:
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 优先选择空闲显存最多的 GPU（若未手动设置 CUDA_VISIBLE_DEVICES）
+def prefer_most_free_gpu_if_available():
+    try:
+        if os.environ.get("CUDA_VISIBLE_DEVICES", "").strip():
+            logger.info(f"检测到已设置 CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}，跳过自动选择GPU")
+            return
+        if not torch.cuda.is_available():
+            logger.info("未检测到可用 CUDA，使用 CPU 或由框架自动选择。")
+            return
+        # 通过 nvidia-smi 查询空闲显存
+        cmd = [
+            "nvidia-smi",
+            "--query-gpu=memory.free",
+            "--format=csv,noheader,nounits"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.warning("nvidia-smi 查询失败，跳过自动选择GPU")
+            return
+        lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
+        free_list = []
+        for idx, v in enumerate(lines):
+            try:
+                free_list.append((idx, int(v)))
+            except ValueError:
+                pass
+        if not free_list:
+            logger.warning("未获取到 GPU 显存信息，跳过自动选择GPU")
+            return
+        best_idx, best_free = max(free_list, key=lambda x: x[1])
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(best_idx)
+        logger.info(f"已自动选择空闲显存最多的 GPU: {best_idx} (free={best_free} MiB)")
+    except Exception as e:
+        logger.warning(f"自动选择GPU失败：{e}")
+        return
 
 class ZhuZiQingModelTester:
     """朱自清散文续写模型测试器"""
@@ -1089,6 +1126,9 @@ def main():
     
     args = parser.parse_args()
     
+    # 在加载模型前，尽量将可见 GPU 限定到空闲显存最多的那一块
+    prefer_most_free_gpu_if_available()
+
     # 创建测试器
     tester = ZhuZiQingModelTester(
         base_model_name=args.base_model,

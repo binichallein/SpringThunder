@@ -24,7 +24,7 @@ import os
 # 添加项目根目录到Python路径
 project_root = os.path.join(os.path.dirname(__file__), '..', '..')
 sys.path.insert(0, project_root)
-from sanwen.api.test_siliconflow_api import get_beginning_and_outline
+from test_siliconflow_api import get_beginning_and_outline
 import time
 
 class SiliconFlowAPIClient:
@@ -1072,7 +1072,7 @@ def main():
                        help="基础模型名称")
     parser.add_argument("--lora_path", default="../../data/models/qwen_zhu_ziqing_lora", 
                        help="LoRA适配器路径")
-    parser.add_argument("--test_data", default="../../data/raw/zhu_ziqing_continuations.json", 
+    parser.add_argument("--test_data", default="zhu_ziqing_continuations.json", 
                        help="测试数据路径")
     parser.add_argument("--num_samples", type=int, default=5, 
                        help="自动测试样本数")

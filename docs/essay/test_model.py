@@ -27,6 +27,7 @@ sys.path.insert(0, project_root)
 from test_siliconflow_api import get_beginning_and_outline
 import time
 import subprocess
+from typing import Tuple
 
 class SiliconFlowAPIClient:
     """硅基流动API客户端"""
@@ -293,6 +294,174 @@ class ZhuZiQingModelTester:
         self.model = None
         self.api_client = SiliconFlowAPIClient()  # 初始化API客户端
         
+    def _print_outline(self, beginning: str, nodes: List[Dict[str, Any]]):
+        """显示当前开头与情节节点（命令行）"""
+        print("\n" + "="*80)
+        print("【当前开头】")
+        print(beginning or "(空)")
+        print("\n【当前情节节点】")
+        if not nodes:
+            print("(暂无节点)")
+        else:
+            for i, node in enumerate(nodes, 1):
+                nid = node.get("node_id", i)
+                desc = node.get("description", "")
+                print(f"{i}. (id={nid}) {desc}")
+        print("="*80)
+
+    def _parse_hitl_command(self, line: str) -> Tuple[str, List[str]]:
+        """解析HITL命令，返回(cmd, args)"""
+        parts = line.strip().split()
+        if not parts:
+            return "", []
+        cmd = parts[0].lower()
+        args = parts[1:]
+        return cmd, args
+
+    def edit_outline_interactively(self, beginning: str, nodes: List[Dict[str, Any]],
+                                   scripted_commands: Optional[List[str]] = None) -> Tuple[str, List[Dict[str, Any]]]:
+        """人机协同：允许用户编辑开头与情节节点
+        支持命令：
+          show                      显示当前内容
+          setbegin <文本>           设置/替换开头
+          add <描述>                在末尾新增节点
+          insert <索引> <描述>      在位置插入（1-based）
+          edit <索引> <新描述>      修改指定节点描述
+          del <索引>                删除指定节点
+          move <源索引> <目标索引>  移动节点到目标位置
+          renumber                  重新按顺序编号 node_id
+          done                      完成编辑
+          help                      显示帮助
+          cancel                    放弃编辑并返回原始
+        可通过 scripted_commands 传入脚本化命令以实现自动化测试。
+        """
+        def renumber_nodes(arr: List[Dict[str, Any]]):
+            for idx, n in enumerate(arr, 1):
+                n["node_id"] = idx
+
+        commands_iter = iter(scripted_commands) if scripted_commands else None
+
+        self._print_outline(beginning, nodes)
+        print("输入 'help' 查看可用命令；输入 'done' 确认，'cancel' 放弃。")
+        while True:
+            try:
+                if commands_iter is not None:
+                    try:
+                        line = next(commands_iter)
+                        # 同步在屏幕上打印命令，便于回看
+                        print(f"hitl> {line}")
+                    except StopIteration:
+                        # 无更多命令，默认 done
+                        line = "done"
+                else:
+                    line = input("hitl> ").strip()
+
+                cmd, args = self._parse_hitl_command(line)
+                if not cmd:
+                    continue
+
+                if cmd == "help":
+                    print("可用命令：show | setbegin <文本> | add <描述> | insert <索引> <描述> | edit <索引> <新描述> | del <索引> | move <源索引> <目标索引> | renumber | done | cancel")
+                    continue
+                if cmd == "show":
+                    self._print_outline(beginning, nodes)
+                    continue
+                if cmd == "setbegin":
+                    if not args:
+                        print("用法：setbegin <文本>")
+                        continue
+                    beginning = " ".join(args)
+                    print("已更新开头。")
+                    continue
+                if cmd == "add":
+                    if not args:
+                        print("用法：add <描述>")
+                        continue
+                    desc = " ".join(args)
+                    nodes.append({"node_id": len(nodes) + 1, "description": desc})
+                    print("已新增节点到末尾。")
+                    continue
+                if cmd == "insert":
+                    if len(args) < 2:
+                        print("用法：insert <索引> <描述>")
+                        continue
+                    try:
+                        idx = int(args[0])
+                    except ValueError:
+                        print("索引需为整数")
+                        continue
+                    desc = " ".join(args[1:])
+                    idx = max(1, min(idx, len(nodes) + 1))
+                    nodes.insert(idx - 1, {"node_id": idx, "description": desc})
+                    renumber_nodes(nodes)
+                    print(f"已在位置 {idx} 插入节点。")
+                    continue
+                if cmd == "edit":
+                    if len(args) < 2:
+                        print("用法：edit <索引> <新描述>")
+                        continue
+                    try:
+                        idx = int(args[0])
+                    except ValueError:
+                        print("索引需为整数")
+                        continue
+                    if idx < 1 or idx > len(nodes):
+                        print("索引超出范围")
+                        continue
+                    new_desc = " ".join(args[1:])
+                    nodes[idx - 1]["description"] = new_desc
+                    print(f"已修改第 {idx} 个节点。")
+                    continue
+                if cmd == "del":
+                    if len(args) != 1:
+                        print("用法：del <索引>")
+                        continue
+                    try:
+                        idx = int(args[0])
+                    except ValueError:
+                        print("索引需为整数")
+                        continue
+                    if idx < 1 or idx > len(nodes):
+                        print("索引超出范围")
+                        continue
+                    del nodes[idx - 1]
+                    renumber_nodes(nodes)
+                    print(f"已删除第 {idx} 个节点。")
+                    continue
+                if cmd == "move":
+                    if len(args) != 2:
+                        print("用法：move <源索引> <目标索引>")
+                        continue
+                    try:
+                        src = int(args[0]); dst = int(args[1])
+                    except ValueError:
+                        print("索引需为整数")
+                        continue
+                    if not (1 <= src <= len(nodes)):
+                        print("源索引超出范围")
+                        continue
+                    dst = max(1, min(dst, len(nodes)))
+                    item = nodes.pop(src - 1)
+                    nodes.insert(dst - 1, item)
+                    renumber_nodes(nodes)
+                    print(f"已将第 {src} 个移动到位置 {dst}。")
+                    continue
+                if cmd == "renumber":
+                    renumber_nodes(nodes)
+                    print("已重新编号 node_id。")
+                    continue
+                if cmd == "done":
+                    self._print_outline(beginning, nodes)
+                    return beginning, nodes
+                if cmd == "cancel":
+                    print("已取消编辑，保留原始规划。")
+                    return beginning, nodes
+
+                print("未知命令，输入 'help' 查看帮助。")
+            except KeyboardInterrupt:
+                print("\n已取消编辑。")
+                return beginning, nodes
+
     def load_model(self):
         """加载基础模型和LoRA适配器"""
         logger.info("开始加载模型...")
@@ -484,7 +653,7 @@ class ZhuZiQingModelTester:
         
         return "\n".join(plot_lines)
     
-    def generate_complete_essay_optimized(self, topic: str) -> Dict[str, Any]:
+    def generate_complete_essay_optimized(self, topic: str, human_in_loop: bool = False, hitl_commands: Optional[List[str]] = None) -> Dict[str, Any]:
         """优化版：只保留前一段落 + 完整情节节点信息"""
         result = {
             "topic": topic,
@@ -526,6 +695,15 @@ class ZhuZiQingModelTester:
                 result["narrative_nodes"] = narrative_outline
             
             logger.info(f"情节规划生成成功，包含 {len(result['narrative_nodes'])} 个节点")
+
+            # 1.5 人机协同：允许用户编辑开头与节点
+            if human_in_loop:
+                logger.info("进入人机协同编辑模式（HITL）")
+                edited_beginning, edited_nodes = self.edit_outline_interactively(
+                    result["generated_beginning"], list(result["narrative_nodes"]), scripted_commands=hitl_commands
+                )
+                result["generated_beginning"] = edited_beginning
+                result["narrative_nodes"] = edited_nodes
             
             # 2. 逐个生成段落，每次只使用前一段落 + 完整节点信息
             full_essay_sections = []
@@ -808,6 +986,7 @@ class ZhuZiQingModelTester:
         logger.info("输入 'quit' 或 'exit' 退出")
         logger.info("输入 'clear' 清屏")
         logger.info("输入 'topic:主题内容' 生成完整散文（优化版）")
+        logger.info("输入 'topic_hitl:主题内容' 开启人机协同后生成")
         logger.info("输入 'topic_old:主题内容 [strategy:策略] [length:长度]' 使用旧版本")
         logger.info("  优化版：只保留前一段落+完整情节节点，更高效准确")
         logger.info("  旧版本：累积所有内容，支持多种截断策略")
@@ -874,6 +1053,41 @@ class ZhuZiQingModelTester:
                     
                     continue
                 
+                elif user_input.startswith('topic_hitl:'):
+                    topic = user_input[len('topic_hitl:'):].strip()
+                    if not topic:
+                        logger.warning("主题不能为空")
+                        continue
+                    logger.info(f"开始（HITL）根据主题生成完整散文: {topic}")
+                    result = self.generate_complete_essay_optimized(topic, human_in_loop=True)
+                    if result["success"]:
+                        print("\n" + "="*80)
+                        print(f"主题: {result['topic']} （HITL 优化版）")
+                        print("="*80)
+                        print(f"\n【最终开头（可能已编辑）】")
+                        print(result["generated_beginning"])
+                        print(f"\n【最终情节规划（可能已编辑）】")
+                        for node in result["narrative_nodes"]:
+                            print(f"节点{node['node_id']}: {node['description']}")
+                        print(f"\n【完整散文生成过程】")
+                        full_essay = result["generated_beginning"]
+                        for section in result["full_essay_sections"]:
+                            print(f"\n--- 节点{section['node_id']}: {section['node_description']} ---")
+                            print(f"【前一段落长度】{section['previous_section_length']} 字符")
+                            print(f"【使用的情节概要】")
+                            print(section['complete_plot_summary'])
+                            print(f"【风格分析】{section['style_analysis']}")
+                            print(f"【续写内容】{section['continuation']}")
+                            if section['continuation']:
+                                full_essay += "\n\n" + section['continuation']
+                        print(f"\n【最终完整散文】")
+                        print("="*60)
+                        print(full_essay)
+                        print("="*80)
+                    else:
+                        print(f"\n❌ 生成失败: {result['error']}")
+                    continue
+
                 elif user_input.startswith('topic_old:'):
                     # 旧版本：支持策略参数
                     parts = user_input[10:].split()
@@ -1123,6 +1337,10 @@ def main():
                        help="上下文管理策略（仅topic模式）")
     parser.add_argument("--max_context_length", type=int, default=1500,
                        help="最大上下文长度（仅topic模式）")
+    # Human-in-the-loop 相关
+    parser.add_argument("--human_in_loop", action="store_true", help="启用人机协同编辑情节规划（HITL）")
+    parser.add_argument("--hitl_commands", type=str, default=None,
+                        help="脚本化HITL命令，使用 | 分隔，例如: 'setbegin 新的开头 | add 新节点 | done'")
     
     args = parser.parse_args()
     
@@ -1216,7 +1434,8 @@ def main():
             return
         
         logger.info(f"根据主题生成完整散文（优化版）: {args.topic}")
-        result = tester.generate_complete_essay_optimized(args.topic)
+        hitl_cmds = [c.strip() for c in args.hitl_commands.split('|')] if args.hitl_commands else None
+        result = tester.generate_complete_essay_optimized(args.topic, human_in_loop=args.human_in_loop, hitl_commands=hitl_cmds)
         
         if result["success"]:
             print("\n" + "="*80)

@@ -48,15 +48,7 @@ hitl>done #确认情节规划没有问题后输入done开始生成
 - `cancel`：放弃编辑并退出（保留当前状态）
 - `help`：显示简要帮助
 
-### 重要参数与路径
-- 基础模型与缓存目录（可通过参数覆盖）：
-  - `--base_model` 默认：`qwen/Qwen2.5-7B-Instruct`
-  - `--cache_dir` 默认：`../../data/models`
-- LoRA 适配器路径：
-  - `--lora_path` 默认：`../../data/models/qwen_zhu_ziqing_lora`
-  - 若路径不存在，脚本会警告并使用基础模型直接测试
-- 测试数据：
-  - `--test_data` 默认：`zhu_ziqing_continuations.json`（位于本目录）
+
 
 ### 关于硅基流动 API
 - 脚本优先调用硅基流动 API 获取“开头段落 + 叙事大纲”。若调用失败，将自动回退到本地备用生成逻辑。
@@ -68,10 +60,10 @@ hitl>done #确认情节规划没有问题后输入done开始生成
 docs/essay/
   README.md                 # 本说明（包含HITL人机协同功能说明）
   requirements.txt          # 运行依赖
-  test_model.py             # 主测试脚本
+  run_model.py             # 主测试脚本
   test_siliconflow_api.py   # API 封装与获取大纲
   test_hitl.py             # HITL功能自动化测试脚本
-  sft.py                    # 训练/微调脚本
+  run_sft.py                    # 训练/微调脚本
   zhu_ziqing_continuations.json  # 测试数据样例
 ```
 

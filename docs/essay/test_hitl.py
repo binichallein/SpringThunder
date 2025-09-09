@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from typing import List, Dict, Any
 
-from test_model import ZhuZiQingModelTester
+from run_model import ZhuZiQingModelTester
 
 
 def run_hitl_scripted_case(commands: List[str]) -> Dict[str, Any]:

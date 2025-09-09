@@ -12,3 +12,4 @@ docs/essay/**/*.bin
 docs/essay/**/models/
 docs/essay/**/cache/
 docs/essay/**/__pycache__/
+docs/essay/qwen_zhu_ziqing_lora/

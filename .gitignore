@@ -1,15 +1,9 @@
 
-# sanwen large files
-sanwen/**/*.safetensors
-sanwen/**/*.bin
-sanwen/**/models/
-sanwen/**/cache/
+# essay_hitl large files / caches
+docs/essay_hitl/**/*.safetensors
+docs/essay_hitl/**/*.bin
+docs/essay_hitl/**/models/
+docs/essay_hitl/**/cache/
+docs/essay_hitl/**/__pycache__/
+docs/essay_hitl/qwen_zhu_ziqing_lora/
 
-
-# essay large files / caches
-docs/essay/**/*.safetensors
-docs/essay/**/*.bin
-docs/essay/**/models/
-docs/essay/**/cache/
-docs/essay/**/__pycache__/
-docs/essay/qwen_zhu_ziqing_lora/
